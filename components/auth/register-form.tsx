@@ -2,9 +2,8 @@
 
 import * as React from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
 import { ArrowRight, MailCheck, ShieldCheck } from 'lucide-react'
-import { Button, buttonVariants } from '@/components/ui/button'
+import { Button } from '@/components/ui/button'
 import { Checkbox, Field, Input, PasswordInput, Select } from '@/components/ui/field'
 import { institutions } from '@/lib/data'
 import { cn } from '@/lib/utils'
@@ -57,7 +56,6 @@ function validate(v: Values): Errors {
 const strengthColor = ['bg-destructive', 'bg-destructive', 'bg-warning', 'bg-success', 'bg-success']
 
 export function RegisterForm() {
-  const router = useRouter()
   const [values, setValues] = React.useState<Values>(initial)
   const [touched, setTouched] = React.useState<Partial<Record<keyof Values, boolean>>>({})
   const [submitting, setSubmitting] = React.useState(false)
@@ -139,27 +137,21 @@ export function RegisterForm() {
         <span className="flex size-11 items-center justify-center rounded-xl border border-success/20 bg-success-soft text-success">
           <MailCheck className="size-5" aria-hidden="true" />
         </span>
-        <h1 className="mt-5 text-[26px] font-semibold leading-8 tracking-[-0.025em]">Verify your email</h1>
+        <h1 className="mt-5 text-[26px] font-semibold leading-8 tracking-[-0.025em]">You’re all set</h1>
         <p className="mt-2 text-sm leading-6 text-muted-foreground">
-          We sent a verification link to <span className="font-medium text-foreground">{values.email}</span>. It expires in 30
-          minutes.
+          Your account for <span className="font-medium text-foreground">{values.email}</span> is ready and you’re signed in.
         </p>
         <div className="mt-6 flex items-start gap-3 rounded-xl border border-border bg-muted/40 p-4">
           <ShieldCheck className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden="true" />
           <p className="text-[13px] leading-5 text-muted-foreground">
-            <span className="font-medium text-foreground">{values.memberId}</span> was matched against the authorised member
-            list for {inst?.shortName}. Your account activates as soon as you confirm your email.
+            Registered as <span className="font-medium text-foreground">{values.memberId}</span> at {inst?.shortName}. Use your
+            institutional email and password to sign in next time.
           </p>
         </div>
-        <Link href="/login" className={cn(buttonVariants({ size: 'lg' }), 'mt-6 w-full')}>
-          Continue to sign in
-        </Link>
-        <p className="mt-4 text-center text-[13px] text-muted-foreground">
-          Wrong address?{' '}
-          <button type="button" onClick={() => setDone(false)} className="font-medium text-foreground hover:underline">
-            Edit details
-          </button>
-        </p>
+        <Button type="button" size="lg" className="mt-6 w-full" onClick={() => window.location.assign('/customer')}>
+          Go to your dashboard
+          <ArrowRight aria-hidden="true" />
+        </Button>
       </div>
     )
   }
