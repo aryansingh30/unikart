@@ -28,6 +28,19 @@ services:
       - key: JWT_SECRET
         generateValue: true
 
+  - type: web
+    name: unikart-frontend
+    runtime: node
+    plan: free
+    region: oregon
+    buildCommand: npm install && npm run build
+    startCommand: npm run start
+    envVars:
+      - key: NEXT_PUBLIC_API_URL
+        value: https://unikart-backend.onrender.com/api/v1
+      - key: NODE_VERSION
+        value: 20.11.0
+
 databases:
   - name: unikart-db
     plan: free
