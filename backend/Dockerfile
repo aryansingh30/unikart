@@ -26,3 +26,4 @@ ENV PORT=8088
 EXPOSE 8088
 
 ENTRYPOINT ["java", "-Djava.security.egd=file:/dev/./urandom", "-jar", "app.jar"]
+

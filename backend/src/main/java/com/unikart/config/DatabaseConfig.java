@@ -40,3 +40,4 @@ public class DatabaseConfig {
         return properties;
     }
 }
+
