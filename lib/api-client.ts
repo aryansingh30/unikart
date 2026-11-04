@@ -2,6 +2,8 @@
 // Connects Next.js Frontend directly to the Java / Spring Boot 3 + PostgreSQL backend.
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8088/api/v1';
+// Account sign-up, sign-in and profile are served by a Netlify Function on the same origin.
+const AUTH_API_BASE = process.env.NEXT_PUBLIC_AUTH_API_URL || '/api/v1';
 
 export interface ApiResponse<T> {
   success: boolean;
@@ -24,7 +26,7 @@ export function setAuthToken(token: string | null) {
   }
 }
 
-export async function apiFetch<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
+export async function apiFetch<T>(endpoint: string, options: RequestInit = {}, base: string = API_BASE): Promise<T> {
   const token = getAuthToken();
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
@@ -35,26 +37,33 @@ export async function apiFetch<T>(endpoint: string, options: RequestInit = {}): 
     headers['Authorization'] = `Bearer ${token}`;
   }
 
-  const url = `${API_BASE}${endpoint.startsWith('/') ? endpoint : `/${endpoint}`}`;
+  const url = `${base}${endpoint.startsWith('/') ? endpoint : `/${endpoint}`}`;
 
+  let res: Response;
   try {
-    const res = await fetch(url, {
+    res = await fetch(url, {
       ...options,
       headers,
     });
-
-    const json = (await res.json()) as ApiResponse<T>;
-    if (!res.ok || !json.success) {
-      throw new Error(json.message || `Request failed with status ${res.status}`);
-    }
-    return json.data;
-  } catch (err: any) {
-    // If backend connection fails, throw with helpful message
-    if (err.name === 'TypeError' && err.message.includes('fetch')) {
-      throw new Error(`Cannot connect to Unikart Backend at ${API_BASE}. Make sure the Spring Boot service is running.`);
-    }
-    throw err;
+  } catch {
+    // Network-level failure (e.g. Safari's "Load failed", Chrome's "Failed to fetch")
+    throw new Error(
+      base === API_BASE
+        ? `Cannot connect to Unikart Backend at ${base}. Make sure the Spring Boot service is running.`
+        : 'Could not reach Unikart. Check your connection and try again.',
+    );
   }
+
+  let json: ApiResponse<T> | null = null;
+  try {
+    json = (await res.json()) as ApiResponse<T>;
+  } catch {
+    // Non-JSON response
+  }
+  if (!res.ok || !json || !json.success) {
+    throw new Error(json?.message || `Request failed with status ${res.status}`);
+  }
+  return json.data;
 }
 
 // ----------------------------------------------------------------------------
@@ -90,14 +99,14 @@ export const authApi = {
     return apiFetch<LoginResponseData>('/auth/login', {
       method: 'POST',
       body: JSON.stringify({ email, password }),
-    });
+    }, AUTH_API_BASE);
   },
 
   verify2Fa: async (tempToken: string, otp: string): Promise<LoginResponseData> => {
     return apiFetch<LoginResponseData>('/auth/verify-2fa', {
       method: 'POST',
       body: JSON.stringify({ tempToken, otp }),
-    });
+    }, AUTH_API_BASE);
   },
 
   register: async (payload: {
@@ -112,18 +121,18 @@ export const authApi = {
     return apiFetch<LoginResponseData>('/auth/register', {
       method: 'POST',
       body: JSON.stringify(payload),
-    });
+    }, AUTH_API_BASE);
   },
 
   getMe: async () => {
-    return apiFetch<LoginResponseData['user']>('/auth/me');
+    return apiFetch<LoginResponseData['user']>('/auth/me', {}, AUTH_API_BASE);
   },
 
   updateProfile: async (payload: { fullName?: string; phone?: string }) => {
     return apiFetch<LoginResponseData['user']>('/auth/profile', {
       method: 'PUT',
       body: JSON.stringify(payload),
-    });
+    }, AUTH_API_BASE);
   },
 };
 

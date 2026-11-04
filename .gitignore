@@ -31,3 +31,5 @@ backend/target/
 *.sln
 *.sw?
 Thumbs.db
+# Local Netlify folder
+.netlify
