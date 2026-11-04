@@ -1,0 +1,49 @@
+erDiagram
+    INSTITUTIONS ||--o| STORES : "1:1 active primary store (C-01)"
+    INSTITUTIONS ||--o{ USERS : "1:M institutional members (C-02)"
+    INSTITUTIONS ||--o{ AUTHORISED_USER_ENTRIES : "whitelist (AUTH-01)"
+    STORES ||--o{ USERS : "assigned Store Manager (AUTH-04)"
+
+    USERS ||--|| WALLETS : "1:1 INR wallet (C-06)"
+    WALLETS ||--o{ WALLET_TRANSACTIONS : "append-only ledger (C-13)"
+    USERS ||--o{ BANK_ACCOUNTS : "encrypted at rest (WAL-06)"
+
+    ITEMS ||--o{ COPIES : "1:M physical units (C-04)"
+    STORES ||--o{ COPIES : "1:M store inventory (C-03)"
+    ITEMS ||--o{ LISTINGS : "0:M store offers (C-05)"
+    STORES ||--o{ LISTINGS : "0:M store offers (C-05)"
+    ITEMS ||--o{ WAITLIST_ENTRIES : "borrow waitlist (CAT-05)"
+
+    USERS ||--o| CARTS : "0:1 active cart (C-07)"
+    CARTS ||--o{ CART_LINES : "unreserved lines (CART-02)"
+    LISTINGS ||--o{ CART_LINES : "referenced offer"
+
+    USERS ||--o{ CHECKOUTS : "places"
+    CHECKOUTS ||--o{ STORE_ORDERS : "1:M per store (C-08)"
+    STORES ||--o{ STORE_ORDERS : "fulfils"
+    STORE_ORDERS ||--o{ ORDER_LINES : "1:M purchase/borrow (C-09)"
+    LISTINGS ||--o{ ORDER_LINES : "snapshot of offer"
+    COPIES ||--o{ ORDER_LINES : "allocated physical copy"
+
+    CHECKOUTS ||--o{ PAYMENTS : "gateway / wallet"
+    PAYMENTS ||--o{ PAYMENT_ALLOCATIONS : "split per StoreOrder (C-12)"
+    STORE_ORDERS ||--o{ PAYMENT_ALLOCATIONS : "allocated share"
+    STORE_ORDERS ||--o{ REFUNDS : "split refund (CAN-03)"
+
+    ORDER_LINES ||--o| BORROW_RECORDS : "0:1 borrow lifecycle (C-10)"
+    COPIES ||--o{ BORROW_RECORDS : "0:1 active borrow (C-11)"
+    BORROW_RECORDS ||--o| RENEWALS : "max 1 renewal (BOR-06)"
+    BORROW_RECORDS ||--o{ FINES : "late / damage / loss"
+    FINES ||--o| FINE_DISPUTES : "7-day dispute workflow (PEN-08)"
+    FINES ||--o| DUES : "shortfall beyond deposit (PEN-04)"
+
+    STORE_ORDERS ||--o{ DELIVERY_JOBS : "outbound delivery (FUL-03)"
+    BORROW_RECORDS ||--o{ DELIVERY_JOBS : "return pickup (FUL-05)"
+
+    USERS ||--o{ SELL_SUBMISSIONS : "in-store seller (SELL-01)"
+    STORES ||--o{ SELL_SUBMISSIONS : "evaluated at"
+    SELL_SUBMISSIONS ||--o{ SELL_LINES : "quoted items"
+
+    USERS ||--o{ NOTIFICATIONS : "in-app / email / SMS"
+    USERS ||--|| USER_NOTIFICATION_PREFERENCES : "SMS opt-out (NOT-02)"
+    USERS ||--o{ AUDIT_LOGS : "actor"

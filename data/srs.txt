@@ -1,0 +1,1918 @@
+SOFTWARE REQUIREMENTS SPECIFICATION
+for
+UNIKART
+College-Level Store Platform to Buy, Borrow and SellBooks, Notes and Study Material
+Version 2.0 
+October 2026
+
+Prepared by
+Roll No.
+Aryan Singh
+2026IS07
+Devanshi Asati
+2026IS08
+Himanshu S
+2026IS09
+
+Submitted to: Prof. M. M. Gore
+
+
+Revision History
+Version
+Date
+Description
+2.0
+October 2026
+Finalised for submission. Incorporates the SRS evaluation feedback by resolving multi-store/mixed carts, Item–Copy–Listing semantics, refund/accounting rules, inventory concurrency, integration failure semantics, data constraints, detailed use cases, traceability, acceptance criteria, diagrams, recovery targets, observability, notification preferences, fine disputes, data retention and configuration versioning.
+
+Contents
+Introduction
+Overall Description
+Functional Requirements
+Order and Borrow Lifecycle
+Business Rules
+External Interface Requirements
+Non-Functional Requirements
+Data Requirements
+Use Cases
+Acceptance Criteria
+Requirements Traceability Matrix
+Future Scope
+Appendix A. Project Decisions and Assumptions
+Appendix B. Validation Checklist
+
+1. Introduction
+1.1 Purpose
+This document specifies the software requirements for Unikart version 2.0. It defines the system scope, actors, functional requirements, business rules, lifecycle behaviour, external interfaces, non-functional requirements, data model, critical use cases and acceptance criteria. It is intended for the project guide, development team, testers and evaluators. IEEE Std 830-1998 is used as a structural guide; it is not treated as a mandatory current standard.
+1.2 Scope
+Unikart is a business-to-consumer (B2C) platform for colleges and universities. Unikart operates its own physical store inside each participating institution and provides a web platform through which authorised institutional users can purchase, borrow and sell physical books, notes and study material.
+Buy books, notes and study material from Unikart stores.
+Borrow physical items for 14 days, 1 month or 45 days against a configurable non-refundable borrow fee and refundable deposit.
+Sell books and study material to Unikart through an in-person store visit; approved payouts are credited to the user wallet.
+Receive items through self pickup from the customer’s own institution store or through delivery, including cross-institution transactions.
+Use the wallet for eligible payments, fines and dues, and redeem the balance to a validated bank account.
+All stock is owned by Unikart. Customers cannot create listings or transact directly with one another; the platform is therefore not a peer-to-peer marketplace.
+Out of scope for v2.0: peer-to-peer lending or selling, online submission of items for sale, digital e-book/PDF content, and operation of Unikart’s own card/UPI payment instrument.
+1.3 Definitions, Acronyms and Abbreviations
+Term
+Meaning
+Customer
+An authorised user associated with a participating institution. The Customer role has identical privileges for all authorised users.
+Store Manager
+Unikart staff member responsible for one store. Manages inventory, listings, handovers, returns, valuation and store-level fines.
+Platform Admin
+Unikart head-office user with platform-wide administration, configuration, reporting and audit rights.
+Delivery Partner
+Third-party logistics provider used for outbound delivery and return pickup.
+Item
+The product/title definition for a book, notes or study material.
+Copy
+One physical unit of an Item held by a specific store and tracked individually.
+Listing
+A store-level offer for an Item for sale, borrowing or both. A Listing is not copy-specific; availability is derived from eligible Copies.
+Checkout
+A customer payment/checkout transaction that can create multiple StoreOrders when a cart contains lines from multiple stores.
+StoreOrder
+A fulfilment unit belonging to exactly one Store. Each StoreOrder contains one or more OrderLines and has its own fulfilment and lifecycle state.
+Borrow Fee
+A non-refundable charge for borrowing, calculated as a configurable percentage of item value and varying by duration.
+Deposit
+A refundable amount held for a borrow and settled at return, subject to fines, deductions and applicable charges.
+Wallet
+A per-customer INR balance maintained by Unikart, with available and reserved amounts and an append-only transaction ledger.
+Self Pickup
+Customer collection from the Unikart store of the same institution, verified by identity and OTP.
+Cross-Institution Order
+A StoreOrder where the customer’s institution differs from the owning store’s institution; such orders are delivery-only.
+ACID
+Atomicity, Consistency, Isolation and Durability.
+RBAC
+Role-Based Access Control.
+RPO
+Recovery Point Objective.
+RTO
+Recovery Time Objective.
+
+1.4 References
+IEEE Std 830-1998, Recommended Practice for Software Requirements Specifications, 1998. Used as the document structure guide.
+OWASP Top 10 (2021), used as the baseline list of major web application security risks.
+Digital Personal Data Protection Act, 2023 (India), used as the privacy and personal-data handling reference.
+Unikart SRS v2.0 Evaluation and Improvement Feedback Report, October 2026, used as the revision input for this final baseline.
+1.5 Document Overview
+Section 2 defines the product context, actors and architecture. Section 3 specifies functional requirements. Sections 4 and 5 define state transitions and business rules. Section 6 specifies external interfaces and integration behaviour. Section 7 defines non-functional requirements. Section 8 specifies the logical data model and constraints. Sections 9–11 provide use cases, acceptance criteria and traceability. Section 12 records future scope, while Appendix A records project decisions and assumptions and Appendix B provides a submission validation checklist.
+2. Overall Description
+2.1 Product Perspective
+Unikart is a self-contained web system serving multiple participating institutions through one platform. Each institution has exactly one Unikart store in the v2.0 scope. Inventory belongs to stores, while catalogue search is platform-wide. A checkout can contain items from multiple stores and can mix purchase and borrow lines; the system splits such a checkout into independent StoreOrders so stock, fulfilment, delivery, cancellation and completion are store-scoped.
+
+Figure 1. System Context Diagram
+
+2.2 Product Functions
+Institution-scoped registration, authentication and RBAC.
+Cross-institution catalogue search with store-level availability.
+Multi-store checkout supporting purchase and borrow lines in the same cart.
+Borrow fee, deposit, automatic copy allocation, renewal, return, reminders and fines.
+Self pickup and partner delivery/return pickup, including cross-institution delivery.
+Sell-to-Unikart workflow with in-store verification, valuation, wallet payout and listing.
+Wallet payments, mixed wallet + gateway payment, redemption and financial ledgering.
+Cancellation/refund with store-order level settlement.
+Copy-level inventory and Item-level store listings.
+Notifications, administration, configurable rules, reporting, audit logging and operational monitoring.
+2.3 User Classes and Characteristics
+User Class
+Description
+Key Capabilities
+Customer
+Authorised institutional user.
+Search, purchase, borrow, renew, return, cancel, manage wallet, view history, sell items in-store.
+Store Manager
+Unikart staff assigned to one store.
+Manage store inventory/listings; verify sell submissions; hand over orders; receive/inspect returns; assess damage/loss fines.
+Platform Admin
+Unikart head-office operator.
+Manage institutions/stores/users; configure parameters; view reports; audit privileged actions; manage integrations.
+Delivery Partner
+External logistics provider.
+Receive outbound/return jobs and report assignment, pickup, transit, delivery/failure status.
+
+2.4 Operating Environment
+Backend: Java with Spring Boot.
+Database: PostgreSQL.
+Frontend: React responsive web application.
+Client browsers: current supported versions of Chrome, Edge, Firefox and Safari.
+All client/server and service communication uses HTTPS/TLS 1.2 or higher.
+2.5 Design and Implementation Constraints
+Only authorised users from participating institutions may register and transact.
+Only physical items/copies are supported in v2.0.
+Selling to Unikart requires an in-person store visit.
+Card/UPI/net-banking data is handled by the payment gateway; Unikart does not store card numbers.
+Wallet, order, deposit and stock changes must be transactional and durable.
+Business parameters must be configurable and versioned; existing transactions use the parameter snapshot effective at the time they were created.
+2.6 System Context and Major Data Exchanges
+External Party / System
+Data exchanged
+Security / Control
+Customer
+Identity, catalogue queries, cart, orders, wallet, returns, disputes
+Authenticated HTTPS; RBAC; OTP for handover/redemption where applicable
+Payment Gateway
+Payment creation, status, refund, signed callback
+HTTPS; signed webhook; idempotency key; timeout/retry policy
+Bank Payout Service
+Redemption amount, bank account token/reference, payout status
+HTTPS; encrypted bank data; signed response where supported
+Notification Service
+Email/SMS/in-app event payloads, OTP requests, delivery status
+HTTPS; no payment secrets; delivery result logged
+Delivery Partner
+Delivery/return job, address, charge, tracking status
+HTTPS; authenticated API; retry/idempotent job creation
+PostgreSQL
+Users, catalogue, copies, orders, wallet, audit and configuration
+ACID transactions, access control, backups, restore testing
+
+3. Functional Requirements
+Priority: M = Must have, S = Should have. Monetary parameters are configurable by the Platform Admin and are not hard-coded. The requirement tables in this section are the authoritative functional baseline for v2.0.
+3.1 Registration, Authentication and Authorisation (AUTH)
+ID
+Requirement
+Priority
+AUTH-01
+The system shall allow registration only when the user identity matches the authorised-user list for the selected institution.
+M
+AUTH-02
+The system shall assign the Customer role to authorised end users and shall apply identical Customer privileges regardless of institutional designation.
+M
+AUTH-03
+The system shall authenticate users with credentials, store passwords using salted adaptive hashing, and issue expiring session tokens.
+M
+AUTH-04
+The system shall enforce RBAC on every protected function; a Store Manager shall be limited to the store assigned to them.
+M
+AUTH-05
+The system shall provide password reset through a verified email link or OTP with limited validity.
+M
+AUTH-06
+When a user is deactivated or removed, the system shall notify the user and shall keep open borrows, fines and dues enforceable.
+M
+AUTH-07
+The system shall support a second authentication factor for Store Manager and Platform Admin accounts.
+S
+AUTH-08
+The system shall throttle or temporarily lock authentication after repeated failed attempts and shall record security events.
+M
+
+3.2 Catalogue and Search (CAT)
+ID
+Requirement
+Priority
+CAT-01
+The system shall support search by title, author, ISBN/code, subject, course and keyword, with filters for institution/store, listing type, category, condition and price.
+M
+CAT-02
+Search shall cover participating stores and show the owning store, institution and current derived availability of every result.
+M
+CAT-03
+The item page shall show condition information, sale price, borrow fee by duration, deposit, availability and applicable fulfilment options.
+M
+CAT-04
+Only Store Managers or Platform Admins shall create or publish listings. Customers shall not create listings.
+M
+CAT-05
+The system shall allow a customer to join a waitlist for an unavailable borrowable Item and shall notify eligible waitlisted customers when availability changes.
+S
+CAT-06
+Availability shown to the customer shall be calculated from eligible Copy records, not from a manually maintained listing quantity.
+M
+
+3.3 Cart, Checkout and Multi-Store Orders (CART)
+ID
+Requirement
+Priority
+CART-01
+The system shall allow a customer to add purchase and borrow lines to the same cart; each borrow line shall store its selected duration.
+M
+CART-02
+Adding a line to the cart shall not reserve stock. Availability shall be revalidated during checkout/payment.
+M
+CART-03
+For each generated StoreOrder, the customer shall choose Self Pickup or Delivery. Self Pickup is permitted only when the store belongs to the customer’s institution.
+M
+CART-04
+Before payment, the system shall show itemised line amounts, borrow deposits, applicable delivery charges and the grand total.
+M
+CART-05
+The system shall accept payment through the gateway, wallet balance, or a combination of both.
+M
+CART-06
+A cart containing lines from multiple stores shall create one Checkout parent and one StoreOrder per store. StoreOrders shall be independently fulfilled, cancelled and settled.
+M
+CART-07
+A StoreOrder may contain purchase and borrow lines together. All lines in that StoreOrder shall use the same fulfilment method and shall be handed over together. Purchase completion and borrow lifecycle shall remain line-specific after handover.
+M
+CART-08
+If any line is unavailable at checkout, the system shall not allocate that line, shall notify the customer, and shall refund any collected amount attributable to that line. Other available StoreOrders/lines may continue only if the customer explicitly confirms the revised checkout total; otherwise the entire checkout shall be cancelled before final capture.
+M
+CART-09
+Stock allocation shall be atomic: concurrent successful payments shall not allocate the same Copy. The checkout request and payment callback shall be idempotent.
+M
+CART-10
+Each payment component shall record its allocation to the affected StoreOrder so that split refunds can be calculated exactly.
+M
+CART-11
+A partially cancelled multi-store Checkout shall keep non-cancelled StoreOrders active and shall show the customer a consolidated status.
+M
+
+3.4 Borrowing (BOR)
+ID
+Requirement
+Priority
+BOR-01
+The system shall allow a borrow line to proceed only when at least one eligible Copy is available at allocation time.
+M
+BOR-02
+Borrow duration shall be 14 days, 1 month or 45 days.
+M
+BOR-03
+Borrow fee shall be non-refundable and shall be a configurable percentage of Item value by duration. Deposit shall be a configurable percentage of Item value.
+M
+BOR-04
+On successful payment and atomic allocation, the borrow line shall be confirmed automatically with a specific Copy; no manual approval step shall exist.
+M
+BOR-05
+The borrow period shall start at handover (pickup collection or successful delivery receipt), and due date shall be calculated at handover.
+M
+BOR-06
+A borrow may be renewed once, before its due date, on payment of the configured renewal fee. Renewal extends the period by the original duration and is refused when another customer is waiting.
+M
+BOR-07
+The system shall send configurable return reminders before the due date.
+M
+BOR-08
+Same-institution borrows may be returned at the store counter or through partner pickup. Cross-institution borrows shall use partner pickup.
+M
+BOR-09
+On return, the Store Manager shall inspect the Copy, record condition, calculate applicable deductions, settle the deposit and close the borrow.
+M
+BOR-10
+The system shall mark a borrow overdue automatically after its due date and shall accrue the configured late fine per overdue day.
+M
+BOR-11
+A disputed fine shall enter a dispute workflow; an unpaid disputed amount shall not create an additional borrowing block until the dispute is resolved, while any undisputed due remains enforceable.
+M
+
+3.5 Fulfilment: Pickup and Delivery (FUL)
+ID
+Requirement
+Priority
+FUL-01
+For Self Pickup, the system shall notify the customer when the StoreOrder is ready. The customer has a 7-day pickup window and collection shall be verified by identity and order OTP.
+M
+FUL-02
+If a Self Pickup StoreOrder is not collected within 7 days, the system shall cancel the affected StoreOrder, release stock and refund deposit amounts less the configured no-show deduction; borrow fees remain non-refundable.
+M
+FUL-03
+Delivery shall be performed by the delivery partner. Delivery charge shall be determined by the configured pricing rule.
+M
+FUL-04
+Cross-institution StoreOrders shall be Delivery only and shall be dispatched from the owning store.
+M
+FUL-05
+The customer shall be able to schedule a partner return pickup for a borrowed item. The return pickup charge is borne by the customer.
+M
+FUL-06
+Delivery and return pickup shall expose status updates such as assigned, picked up, in transit, delivered and failed to the customer and relevant store staff.
+M
+FUL-07
+Delivery shall permit up to 2 customer-unavailable/refusal retries within 72 hours. After the retry limit, the item shall return to the owning store and the affected StoreOrder shall be settled under the cancellation/refund rules; incurred outbound and return charges may be deducted from the refundable amount.
+M
+FUL-08
+Notes and study material shall follow the same fulfilment rules as books.
+M
+FUL-09
+Delivery handover shall be verified by OTP.
+S
+FUL-10
+Delivery-job creation shall be idempotent so repeated API calls cannot create duplicate jobs for the same StoreOrder event.
+M
+
+3.6 Selling to Unikart (SELL)
+ID
+Requirement
+Priority
+SELL-01
+Selling to Unikart shall be possible only through an in-person store visit; the website shall not accept items for sale.
+M
+SELL-02
+The Store Manager shall verify the seller as an authorised user and verify each item’s authenticity and condition.
+M
+SELL-03
+The Store Manager shall assess the current value and record a quote for each item.
+M
+SELL-04
+The seller shall accept or decline the quote. On acceptance, the Store Manager approves the purchase.
+M
+SELL-05
+On approval, the agreed amount shall be credited to the seller’s wallet through a successful wallet transaction.
+M
+SELL-06
+A rejected item shall not be listed; rejection reason shall be recorded.
+M
+SELL-07
+An approved item shall be created as a new Copy in the store inventory and shall be listed for sale, borrow or both.
+M
+SELL-08
+The system shall retain seller, item, quote, approver and timestamp for every purchase from a user.
+M
+
+3.7 Wallet and Payments (WAL)
+ID
+Requirement
+Priority
+WAL-01
+Each customer shall have exactly one wallet in INR.
+M
+WAL-02
+The wallet shall track available and reserved balances. Available balance may be debited by purchases, borrows, fines, dues and successful redemptions, and credited by seller payouts and eligible refunds.
+M
+WAL-03
+A customer may pay by wallet, gateway, or both; the system shall record the exact payment-method allocation per StoreOrder.
+M
+WAL-04
+The customer may redeem available wallet balance to a validated bank account with no minimum amount.
+M
+WAL-05
+Every wallet movement shall be recorded in an append-only ledger with reference, amount, type, state and timestamp.
+M
+WAL-06
+Bank account details shall be validated and encrypted at rest. Card numbers shall never be stored.
+M
+WAL-07
+Wallet redemption shall require re-authentication or OTP.
+S
+WAL-08
+The settled wallet balance shall never become negative. Amounts owed beyond wallet balance shall be tracked as dues.
+M
+WAL-09
+Refund allocation shall follow the original payment method: gateway-paid amounts return to the gateway; wallet-paid amounts return to the wallet. Mixed payments shall be split using recorded PaymentAllocation entries.
+M
+WAL-10
+Wallet transaction states shall include Pending, Success, Failed and Reversed. A failed bank redemption shall release any reserved amount without permanently reducing the settled balance; a previously successful transaction shall be corrected using a reversal entry, never by editing the original ledger row.
+M
+WAL-11
+Every wallet-changing operation shall carry an idempotency key, and replayed requests shall not double-credit or double-debit the wallet.
+M
+WAL-12
+Wallet reconciliation shall compare internal ledger totals with successful external payout/payment results; mismatches shall generate an operational alert for investigation.
+M
+
+3.8 Fines and Penalties (PEN)
+ID
+Requirement
+Priority
+PEN-01
+A late return shall incur a flat configured fine per overdue day.
+M
+PEN-02
+For damage or loss, the Store Manager shall assess the fine and record amount, reason, evidence/notes and assessor.
+M
+PEN-03
+Applicable fines shall be deducted from the borrow deposit first.
+M
+PEN-04
+If a fine exceeds the deposit, the shortfall shall become a due and the customer shall be blocked from placing new borrow requests until the undisputed due is cleared.
+M
+PEN-05
+The customer shall receive a fine breakdown and shall be able to view fine history and current status.
+M
+PEN-06
+Dues shall be payable through the wallet or payment gateway.
+M
+PEN-07
+The Platform Admin may waive or adjust a fine, with the reason and before/after values recorded in the audit log.
+S
+PEN-08
+The customer may dispute a fine within 7 calendar days of notification. The dispute shall move through Submitted, Under Review, Upheld, Adjusted or Waived states.
+M
+PEN-09
+Store Manager response to a dispute shall be targeted within 3 working days; Platform Admin final review shall be targeted within 5 working days when escalated.
+S
+
+3.9 Cancellation and Refunds (CAN)
+ID
+Requirement
+Priority
+CAN-01
+A customer may cancel an unhanded-over StoreOrder. The affected copies shall return to Available stock.
+M
+CAN-02
+For purchase lines, the refundable item amount is the amount paid for the cancelled line less delivery charges actually incurred. For borrow lines, the non-refundable borrow fee is excluded from the refund; refundable deposit is settled separately.
+M
+CAN-03
+Gateway-paid refundable amounts shall be returned to the gateway; wallet-paid refundable amounts shall return to the wallet; mixed payments shall be split by PaymentAllocation.
+M
+CAN-04
+A cancellation shall create a refund record, ledger entries where applicable, inventory release, customer notification and audit record.
+M
+CAN-05
+Cancellation is evaluated per StoreOrder in a multi-store Checkout. Other StoreOrders continue unless separately cancelled or otherwise failed.
+M
+CAN-06
+After handover, a purchase is final and cannot be cancelled; a borrow is closed through the return lifecycle.
+M
+CAN-07
+Where delivery has failed and retry limits are exhausted before handover, settlement follows CAN-02/CAN-03 and incurred outbound/return delivery charges may reduce the refundable amount.
+M
+
+3.10 Inventory and Store Management (INV)
+ID
+Requirement
+Priority
+INV-01
+Each store shall maintain inventory at Copy level with unique Copy ID, condition and status: Available, Allocated, Ready for Pickup, Dispatched, Borrowed, Sold, Under Inspection, Lost or Withdrawn.
+M
+INV-02
+Store Managers shall manage Items, Copies and Listings only for their own store.
+M
+INV-03
+A Listing shall reference exactly one Item and one Store. A Listing is not copy-specific.
+M
+INV-04
+Listing availability shall equal the count of eligible Copies for that Item and Store whose status permits the selected transaction type.
+M
+INV-05
+Stock status changes caused by payment allocation, cancellation, handover, return or inspection shall be atomic with the related business transaction.
+M
+INV-06
+Copy allocation shall use a concurrency-safe database transaction or equivalent mechanism that guarantees at most one active allocation per Copy.
+M
+INV-07
+The Store Manager console shall show pending pickups, due/overdue returns, inspections, sell queue and delivery exceptions for the manager’s store.
+M
+INV-08
+The system shall provide store stock reports and low-stock indicators based on current eligible Copy counts.
+S
+
+3.11 Notifications (NOT)
+ID
+Requirement
+Priority
+NOT-01
+The system shall notify users by in-app and email for required transactional events and by SMS where enabled. Required events include order confirmation, pickup readiness, pickup-window warning/expiry, dispatch/delivery updates, return reminders, overdue status, fines/dues, renewal result, wallet movement, refunds, waitlist availability and relevant admin changes.
+M
+NOT-02
+Users may opt out of non-security SMS notifications. OTPs, security events and legally/operationally mandatory notices shall remain mandatory through at least one supported channel.
+M
+NOT-03
+Notification delivery state shall be recorded as Pending, Sent, Failed or Skipped, with reason for skipped/failed events.
+M
+
+3.12 Platform Administration (ADM)
+ID
+Requirement
+Priority
+ADM-01
+The Platform Admin shall onboard institutions and stores and assign Store Managers.
+M
+ADM-02
+The Platform Admin shall manage authorised users per institution, including bulk import.
+M
+ADM-03
+The Platform Admin shall manage listings, users, borrow entries and configuration subject to audit controls.
+M
+ADM-04
+The Platform Admin shall configure borrow fee percentages, deposit percentage, renewal fee, late fine, no-show deduction, delivery pricing rules, reminder timing and retry limits.
+M
+ADM-05
+The system shall provide transaction, inventory, fine, wallet and activity reports per store and platform-wide.
+M
+ADM-06
+All privileged changes to money, stock, users and configuration shall be written to a tamper-evident audit log searchable by the Platform Admin.
+M
+ADM-07
+The Platform Admin shall manage delivery partner configuration and pricing rules.
+M
+ADM-08
+Configuration changes shall have effective dates, version numbers, validation and audit history. Existing StoreOrders, payments and borrows shall retain the parameter snapshot active when they were created.
+M
+ADM-09
+The system shall provide operational alerts for payment, delivery, wallet reconciliation, backup/restore and integration failures.
+M
+
+4. Order and Borrow Lifecycle
+4.1 Checkout and StoreOrder Model
+A cart is converted into one Checkout parent. The system groups cart lines by owning store and creates one StoreOrder per store. Each StoreOrder independently tracks fulfilment, delivery, cancellation, refund and completion. This removes the earlier singular-store ambiguity while preserving a consolidated checkout view for the customer.
+
+Figure 2. Order / Checkout Activity Diagram
+
+State
+Meaning
+Allowed next states
+Invalid transition behaviour
+Payment Pending
+Checkout submitted; payment being authorised/captured.
+Confirmed, Payment Failed, Cancelled
+Reject event; no allocation/financial mutation; log attempt.
+Confirmed
+Payment succeeded and required eligible Copies allocated atomically.
+Preparing, Ready for Pickup, Dispatched, Cancelled
+Reject; preserve current state.
+Preparing
+Store is preparing an order for handover.
+Ready for Pickup, Dispatched, Cancelled
+Reject; audit.
+Ready for Pickup
+Self Pickup order is ready; 7-day window is running.
+Handed Over, Cancelled
+Reject; no silent state change.
+Dispatched
+Delivery partner has accepted outbound job.
+Handed Over, Delivery Failed, Cancelled where policy permits
+Reject except defined exception.
+Handed Over
+Customer has received/collected the items.
+Completed
+No cancellation allowed. Borrow lines enter Active; purchase lines complete.
+Completed
+All StoreOrder obligations completed or closed.
+End
+No transition.
+Delivery Failed
+Delivery attempt failed and is within retry/return workflow.
+Dispatched, Cancelled
+Reject direct completion without delivery event.
+Cancelled
+StoreOrder cancelled and settlement/refund workflow completed.
+End
+No transition.
+
+4.2 Borrow Lifecycle
+
+Figure 3. Borrow State Diagram
+
+State
+Meaning
+Allowed next states
+Payment Pending
+Payment in progress.
+Confirmed, Cancelled
+Confirmed
+Copy allocated; awaiting fulfilment.
+Ready for Pickup, Dispatched, Cancelled
+Ready for Pickup
+Same-institution pickup; 7-day window.
+Active, Cancelled
+Dispatched
+Copy with delivery partner.
+Active, Delivery Failed, Cancelled
+Active
+Borrow period started at handover.
+Renewed, Overdue, Return Initiated
+Renewed
+One renewal applied; due date extended.
+Return Initiated, Overdue
+Overdue
+Due date passed; late fine accrues.
+Return Initiated
+Return Initiated
+Counter return or pickup scheduled.
+Inspection
+Inspection
+Returned Copy under Store Manager inspection.
+Closed, Closed with Fine
+Closed / Closed with Fine
+Deposit settled and borrow obligation closed.
+End
+
+4.3 Purchase Lifecycle
+Purchase lines follow Payment Pending → Confirmed → fulfilment (Ready for Pickup or Dispatched) → Handed Over → Completed. A purchase may be cancelled before handover. After handover the sale is final. In a mixed StoreOrder, purchase lines complete at handover while borrow lines enter Active and continue independently.
+4.4 Sell-to-Unikart Lifecycle
+
+Figure 4. Sell-to-Unikart Activity Diagram
+
+4.5 Invalid Transition Control
+Every state-changing API/service operation shall validate the current state before applying a transition. An invalid transition shall return a deterministic business error, shall not mutate inventory or money, and shall create an audit/operational log entry. Repeated delivery, payment or wallet callbacks shall be treated as idempotent when they carry the same provider event or idempotency key.
+5. Business Rules
+Rule ID
+Authoritative rule
+BR-01
+Only authorised users of participating institutions may register and transact.
+BR-02
+All stock is owned by Unikart; there is no customer-to-customer transaction.
+BR-03
+Item = product/title definition; Copy = physical unit; Listing = store-level offer for Item.
+BR-04
+Listing availability is derived from eligible Copies in the same store for the same Item.
+BR-05
+A Checkout may contain multiple stores and mixed purchase/borrow lines; it creates one StoreOrder per store.
+BR-06
+Each StoreOrder uses exactly one fulfilment method; Self Pickup is valid only for the customer’s own institution store.
+BR-07
+Stock is not reserved by the cart. Final allocation occurs atomically during checkout/payment.
+BR-08
+When the last available Copy is contested, the first successfully authorised/confirmed transaction receives it; later conflicting transactions are refunded for the affected line.
+BR-09
+Borrow fee is non-refundable. Deposit is refundable subject to deductions, fines and applicable charges.
+BR-10
+Borrow period starts at handover.
+BR-11
+Borrow renewal is allowed once before the due date and is refused when a waitlist exists for that Item.
+BR-12
+Cross-institution orders are delivery-only; cross-institution borrow returns use partner pickup.
+BR-13
+Delivery allows up to two retries for customer unavailability/refusal within 72 hours; then items return to the store.
+BR-14
+Self Pickup no-show after 7 days cancels the affected StoreOrder and returns the deposit less the configured no-show deduction; borrow fee remains non-refundable.
+BR-15
+Cancellation is per StoreOrder in a multi-store Checkout.
+BR-16
+Refunds are returned to the original payment method; wallet and gateway portions are split according to PaymentAllocation records.
+BR-17
+Delivery fees already incurred may be deducted from the refundable amount according to the cancellation/delivery-failure policy.
+BR-18
+Fines are taken from deposit first; undisputed unpaid shortfall becomes a due and may block new borrowing.
+BR-19
+A disputed fine follows a formal dispute workflow and disputed amount does not add a new borrowing block until resolution.
+BR-20
+Wallet ledger is append-only. Corrections are recorded as reversal entries rather than edits.
+BR-21
+Wallet redemption reserves the requested amount while Pending; failed payout releases the reservation; successful payout settles the debit.
+BR-22
+All money, inventory and order state mutations use ACID transactions or an equivalent atomic mechanism.
+BR-23
+All externally triggered payment/delivery/wallet callbacks are authenticated and idempotent.
+BR-24
+Configuration changes are versioned; new business transactions use the effective version, while existing transactions retain their parameter snapshot.
+BR-25
+Security, financial, inventory and administrative events are audit logged.
+
+6. External Interface Requirements
+6.1 User Interfaces
+Responsive React web application for customers, usable on desktop and mobile browsers.
+Staff console for Store Managers and Platform Admins with role-scoped dashboards.
+Checkout shall clearly show store split, line type, price/fee, deposit, delivery charge, payment-method allocation and refund implications before final confirmation.
+Borrow screens shall display handover date, due date, renewal eligibility, fine status and return options.
+Wallet screens shall display available balance, reserved balance, transaction status and redemption history.
+6.2 Hardware Interfaces
+Store counter PC/tablet running the staff console.
+Optional barcode/QR scanner for Copy IDs.
+No special hardware required for customers.
+6.3 Software Interfaces
+Interface
+Purpose
+Contract / Failure handling
+Payment Gateway
+Collect card/UPI/net-banking payments, refunds and status callbacks.
+REST/JSON; signed webhook; timeout/retry; idempotency; unknown status moves to Pending/Reconciliation.
+Bank Payout Service
+Redeem wallet balance to customer bank account.
+REST/JSON; redemption idempotency; Pending/Success/Failed/Reversed; failed payout releases reservation.
+Email/SMS Service
+Notifications, OTPs and reminders.
+REST/JSON; per-message id; retry up to 3 times; failure logged; mandatory notices fall back to another channel when configured.
+Delivery Partner API
+Create outbound/return jobs, obtain charges, receive tracking status.
+REST/JSON; signed/authenticated requests; idempotent job key; retry policy; failed job enters exception workflow.
+PostgreSQL
+Primary datastore.
+ACID, FK/unique constraints, backups, restore tests, transaction isolation appropriate for stock allocation.
+
+6.4 API Contract Baseline
+API / Event
+Request / key fields
+Response / states
+Timeout / Retry / Idempotency
+POST /api/v1/payments
+checkoutId, amount, currency, method, idempotencyKey
+paymentId, status, providerReference
+5 s synchronous target; up to 3 retries with backoff; same key returns same result.
+POST /api/v1/payments/webhook
+eventId, paymentId, amount, status, signature
+HTTP acknowledgement after validation
+Signature verified; duplicate eventId ignored safely.
+POST /api/v1/refunds
+storeOrderId, refundAmount, reason, idempotencyKey
+refundId, status
+3 retries; duplicate key returns existing refund.
+POST /api/v1/payouts
+redemptionId, amount, bankToken, idempotencyKey
+providerRef, status
+3 retries; Pending remains if provider outcome unknown.
+POST /api/v1/delivery/jobs
+storeOrderId, direction, address, charge, idempotencyKey
+jobId, trackingRef, status
+3 retries; same key prevents duplicate job.
+POST /api/v1/delivery/webhook
+jobId, eventId, status, timestamp, signature
+HTTP acknowledgement
+Signature/auth check; duplicate event ignored.
+
+6.5 Communication Interfaces
+All client-server and server-to-service communication shall use HTTPS with TLS 1.2 or higher and JSON-based REST APIs. Provider callbacks shall be authenticated and signature-verified. Correlation IDs shall be included in application logs for payment, delivery, wallet and order operations.
+6.6 Integration Failure Behaviour
+Unknown provider status shall never be treated as success or failure without a verified callback or reconciliation result.
+Payment timeout: keep transaction Pending and reconcile asynchronously; do not create a second charge using a different idempotency key for the same checkout attempt.
+Delivery API failure: retry according to policy; after retry limit, move the job to operational exception and notify store staff.
+Wallet payout failure: release reserved wallet amount and record Failed state; no silent balance loss.
+Notification failure: retry; if a mandatory notice fails on one channel, use an available fallback channel.
+7. Non-Functional Requirements
+ID
+Category
+Requirement
+NFR-01
+Performance
+Search results and item pages shall load within 2 seconds for at least 95% of requests under normal load. Checkout confirmation shall complete within 5 seconds excluding external gateway processing time.
+NFR-02
+Scalability
+Support at least 1,000 concurrent users per deployment and allow onboarding additional institutions without code changes.
+NFR-03
+Availability
+Target 99% service availability excluding planned maintenance announced in advance.
+NFR-04
+Security: Authentication
+Salted adaptive password hashing; token expiry; throttling/lockout after repeated failures; second factor for staff accounts.
+NFR-05
+Security: Access Control
+Server-side RBAC for every protected request with store-level scoping for Store Managers.
+NFR-06
+Security: Data
+TLS 1.2+ in transit; sensitive personal/bank fields encrypted at rest; no card numbers stored.
+NFR-07
+Security: Application
+Protection against OWASP Top 10 risks including input validation, parameterised queries, CSRF/XSS protection, secure headers and rate limiting.
+NFR-08
+Integrity
+Wallet, deposit, stock and order mutations shall be ACID. Ledger is append-only. Duplicate callbacks are idempotent.
+NFR-09
+Auditability
+Privileged, financial and inventory actions shall log actor, time, action, entity and before/after values; logs shall be tamper-evident.
+NFR-10
+Privacy
+Collect only required personal data, restrict access by role and retain/process it according to the DPDP Act, 2023 and the retention rules in Appendix A.
+NFR-11
+Recovery
+RPO <= 15 minutes and RTO <= 2 hours for the primary platform. Daily full backups plus continuous transaction/WAL archiving shall support the target. Restore test shall be performed at least quarterly.
+NFR-12
+Observability
+Application logs, metrics and alerting shall cover authentication, payment, inventory allocation, wallet reconciliation, delivery integration and background jobs. Critical integration failures shall alert within 5 minutes of detection.
+NFR-13
+Usability
+A first-time customer shall be able to find an item and place a borrow request without training; customer interface shall support screens from 360 px wide.
+NFR-14
+Maintainability
+Layered modular architecture, configurable business parameters, versioned API contracts and automated tests for core flows.
+NFR-15
+Extensibility
+Item model shall support a future digital format without redesigning the Checkout, StoreOrder, Wallet or Borrow domain contracts.
+NFR-16
+Configuration Safety
+Configuration changes shall be validated, versioned, auditable and effective-dated; existing transactions shall use their stored configuration snapshot.
+
+8. Data Requirements
+8.1 Logical Data Model
+The following logical model is the authoritative v2.0 data baseline. The Item–Copy–Listing distinction is explicit: Item describes what the product is; Copy identifies each physical unit; Listing is the store’s offer for an Item and is never tied to a single Copy. Copy-level availability is derived at query/allocation time.
+
+Figure 5. Entity Relationship Diagram (logical model)
+
+Entity
+Key attributes
+Important constraint / purpose
+Institution
+institution_id (PK), name, status
+Exactly one row per participating institution.
+Store
+store_id (PK), institution_id (FK), location, status
+Exactly one active primary store per participating institution in v2.0.
+User
+user_id (PK), institution_id (FK), institutional_id, name, email, phone, role, status, blocked_flag
+Institutional identity and role; email/ID uniqueness enforced within institution.
+AuthorisedUserEntry
+entry_id (PK), institution_id (FK), institutional_id/email, status
+Unique active identity per institution.
+Item
+item_id (PK), title, author, ISBN/code, category, subject/course, base_value
+One product/title definition.
+Copy
+copy_id (PK), item_id (FK), store_id (FK), condition, status, acquisition_source
+Unique physical unit.
+Listing
+listing_id (PK), item_id (FK), store_id (FK), type, price, fee/deposit parameters, status
+Store offer for Item; availability derived from Copy.
+Cart / CartLine
+cart_id (PK), user_id (FK); cart_line_id (PK), listing_id (FK), line_type, duration
+One active cart per Customer; line type is purchase or borrow.
+Checkout
+checkout_id (PK), user_id (FK), status, totals, timestamps
+Parent transaction for a cart checkout.
+StoreOrder / OrderLine
+store_order_id (PK), checkout_id (FK), store_id (FK); order_line_id (PK), listing_id (FK), line_type, amount, deposit
+One StoreOrder per store; StoreOrder may mix purchase and borrow lines.
+Payment / PaymentAllocation
+payment_id (PK), checkout_id (FK), method, amount, status; allocation_id (PK), store_order_id (FK), amount, method share
+Supports exact refund splitting for mixed wallet/gateway payments.
+BorrowRecord / Renewal
+borrow_id (PK), order_line_id (FK), copy_id (FK), dates, status; renewal_id (PK), borrow_id (FK), fee, new_due_date
+One active BorrowRecord per borrow line.
+Fine / Due
+fine_id (PK), borrow_id (FK), type, amount, status, assessed_by
+Late, damage, loss and resulting dues/dispute states.
+Wallet / WalletTransaction
+wallet_id (PK), user_id (FK), available_balance, reserved_balance; tx_id (PK), wallet_id (FK), type, amount, state, reference, idempotency_key, timestamp
+Exactly one wallet per Customer; append-only ledger.
+DeliveryJob
+job_id (PK), store_order_id/borrow_id, direction, provider_ref, status, attempts, charge
+Outbound or return job.
+SellSubmission / SellLine
+submission_id (PK), user_id, store_id, status; sell_line_id, item_id, decision, quote, reason
+In-store seller workflow.
+WaitlistEntry
+waitlist_id (PK), user_id, item_id, status, created_at
+Supports renewal eligibility rule and availability notifications.
+Notification
+notification_id (PK), user_id, channel, event_type, status, reason
+Tracks mandatory and optional notification delivery.
+AuditLog
+audit_id (PK), actor_id, action, entity, before_after, timestamp
+Tamper-evident privileged/financial/inventory history.
+ConfigParameter
+parameter_id (PK), key, value, version, effective_from, effective_to, changed_by
+Versioned and effective-dated configuration.
+
+8.2 Cardinalities and Constraints
+ID
+Relationship / Constraint
+Rule
+C-01
+Institution → Store
+1 : 1 active primary store in v2.0; historical/closed stores may exist.
+C-02
+Institution → User
+1 : M
+C-03
+Store → Copy
+1 : M
+C-04
+Item → Copy
+1 : M
+C-05
+Item + Store → Listing
+0 : M listings by type/status; no duplicate active offer for the same type unless explicitly versioned.
+C-06
+Customer → Wallet
+Exactly 1 : 1 active wallet.
+C-07
+Customer → Cart
+Exactly 0 or 1 active cart; historical carts retained.
+C-08
+Checkout → StoreOrder
+1 : M; one StoreOrder per store in the checkout.
+C-09
+StoreOrder → OrderLine
+1 : M
+C-10
+OrderLine (borrow) → BorrowRecord
+0 : 1 active borrow record.
+C-11
+Copy → active BorrowRecord
+0 : 1 at a time; historical borrow records allowed.
+C-12
+Payment → PaymentAllocation
+1 : M when a payment covers multiple StoreOrders.
+C-13
+Wallet → WalletTransaction
+1 : M, append-only.
+C-14
+Configuration key → versions
+1 : M; only one version may be effective for a given key at a given instant.
+C-15
+Copy ID / institutional identity / provider event ID / idempotency key
+Unique in their relevant scope.
+
+8.3 Data Retention, Deletion and Legal Holds
+Data class
+Retention rule
+Deletion / anonymisation
+Customer profile data
+Retain while account is active and up to 24 months after closure.
+Delete or anonymise when no legal/financial hold applies.
+Orders, payments, refunds, wallet ledger, fines
+7 years after final settlement.
+Retain for financial/audit needs; restrict access after account closure.
+Audit logs
+7 years.
+Append-only; no ordinary user deletion.
+Application/security logs
+90 days unless linked to an open incident.
+Automatic rolling deletion subject to incident/legal hold.
+Backups
+35 days of full/differential backup retention plus required WAL/archive retention to meet RPO.
+Old backups deleted automatically unless legal/incident hold exists.
+
+Account closure shall not erase records required for active borrows, unpaid dues, disputes, financial reconciliation or legal holds. Such records shall be minimised/anonymised where feasible.
+9. Use Cases
+9.1 Use Case Diagram
+
+Figure 6. Primary Use Case Diagram
+
+ID
+Use Case
+Primary Actor
+UC-01
+Register and log in
+Customer
+UC-02
+Search catalogue across institutions
+Customer
+UC-03
+Place a borrow order
+Customer
+UC-04
+Place a purchase order
+Customer
+UC-05
+Collect order by Self Pickup
+Customer, Store Manager
+UC-06
+Receive order by delivery
+Customer, Delivery Partner
+UC-07
+Renew a borrow
+Customer
+UC-08
+Return borrowed item and settle deposit/fine
+Customer, Store Manager, Delivery Partner
+UC-09
+Cancel StoreOrder
+Customer
+UC-10
+Sell items to Unikart
+Customer, Store Manager
+UC-11
+Manage wallet and redeem to bank
+Customer
+UC-12
+Assess / dispute / resolve fine
+Customer, Store Manager, Platform Admin
+UC-13
+Manage store inventory and listings
+Store Manager
+UC-14
+Manage institutions/stores/users
+Platform Admin
+UC-15
+Configure fees, rates and rules
+Platform Admin
+UC-16
+View reports and audit logs
+Platform Admin
+UC-17
+Join waitlist
+Customer
+UC-18
+Checkout multi-store / mixed purchase-borrow cart
+Customer
+UC-19
+Resolve concurrent checkout conflict
+Customer, System
+UC-20
+Handle delivery failure and retry/return
+Customer, Store Manager, Delivery Partner
+
+UC-03 — Place a borrow order
+Field
+Specification
+Primary Actor
+Customer
+Preconditions
+Customer is authenticated; listing is borrowable; Customer is not blocked by an unresolved undisputed due; selected duration is valid.
+Main Flow
+1. Customer adds borrow line to cart. 2. System shows fee, deposit and eligible fulfilment options. 3. Customer confirms Checkout; system creates StoreOrder(s). 4. System validates availability and locks eligible Copy rows atomically. 5. Payment is authorised using wallet/gateway/both. 6. On successful payment the borrow line is confirmed and Copy is allocated. 7. StoreOrder moves to Ready for Pickup or Dispatched. 8. At handover the borrow start time and due date are created.
+Alternate / Exception Flows
+Copy unavailable: affected line is removed/refunded and customer may confirm revised total. Payment timeout: transaction remains Pending until verified. Concurrent conflict: only one confirmed allocation succeeds.
+Postconditions
+Confirmed StoreOrder, Payment/Allocation records, BorrowRecord and notifications exist.
+
+UC-04 — Place a purchase order
+Field
+Specification
+Primary Actor
+Customer
+Preconditions
+Customer authenticated; listing is active; product is available at checkout.
+Main Flow
+1. Add purchase line. 2. Review store split, fulfilment and total. 3. Confirm payment. 4. System atomically allocates a Copy. 5. Store prepares pickup or creates delivery job. 6. Handover is verified. 7. Purchase line becomes Completed.
+Alternate / Exception Flows
+Unavailable line: no allocation; refund that line; other StoreOrders continue only after revised-total confirmation. Delivery failure: retry, then cancel/return if limit reached.
+Postconditions
+Handover recorded; Copy marked Sold; refund only if cancellation/failure before handover.
+
+UC-08 — Return borrowed item and settle deposit/fine
+Field
+Specification
+Primary Actor
+Customer / Store Manager / Delivery Partner
+Preconditions
+Borrow is Active or Overdue; customer has a valid return route.
+Main Flow
+1. Customer chooses counter return or pickup. 2. System schedules pickup if required. 3. Copy is received and moves to Inspection. 4. Store Manager records condition. 5. System calculates late/damage/loss fine. 6. Deposit is reduced by fine/deductions. 7. Remaining refundable deposit is settled and borrow closes.
+Alternate / Exception Flows
+Fine exceeds deposit: shortfall becomes Due. Customer disputes fine: dispute record created; undisputed due remains enforceable.
+Postconditions
+Borrow closed, Copy status restored/withdrawn/lost as appropriate, refund ledger created, notifications sent.
+
+UC-09 — Cancel StoreOrder
+Field
+Specification
+Primary Actor
+Customer
+Preconditions
+StoreOrder not handed over.
+Main Flow
+1. Customer selects a StoreOrder to cancel. 2. System validates state. 3. Copies are released. 4. Refund is calculated from PaymentAllocation and incurred delivery charges. 5. Gateway/wallet refunds are executed. 6. Customer is notified; audit entry is created.
+Alternate / Exception Flows
+Multi-store checkout: only selected StoreOrder is cancelled. Delivery already incurred: eligible refund reduced by actual charge.
+Postconditions
+StoreOrder Cancelled; inventory available; refund status recorded.
+
+UC-10 — Sell items to Unikart
+Field
+Specification
+Primary Actor
+Customer / Store Manager
+Preconditions
+Customer authorised; in-person store visit.
+Main Flow
+1. Verify identity. 2. Inspect authenticity and condition. 3. Record valuation quote. 4. Customer accepts or declines. 5. If accepted, Manager approves. 6. Wallet is credited. 7. Approved item becomes a Copy and Listing.
+Alternate / Exception Flows
+Verification/rejection: no wallet credit and no listing. Seller declines: submission closed without purchase.
+Postconditions
+Submission retains audit trail; approved Copy appears in inventory.
+
+UC-11 — Redeem wallet balance to bank
+Field
+Specification
+Primary Actor
+Customer
+Preconditions
+Wallet has sufficient available balance; bank account is validated.
+Main Flow
+1. Customer requests redemption and completes re-authentication/OTP. 2. System creates Pending redemption and reserves amount. 3. Payout request sent with idempotency key. 4. Success: settle wallet debit and mark redemption Success. 5. Failure: release reservation and mark Failed.
+Alternate / Exception Flows
+Unknown provider status: retain Pending and reconcile; do not double-submit. Previously successful result reversed: create reversal ledger entry.
+Postconditions
+Wallet balance reconciled; payout status and ledger linked.
+
+UC-12 — Assess / dispute / resolve fine
+Field
+Specification
+Primary Actor
+Customer / Store Manager / Platform Admin
+Preconditions
+Fine exists and notification delivered.
+Main Flow
+1. Store Manager records fine. 2. Customer views breakdown. 3. Customer may dispute within 7 days. 4. Store Manager reviews and responds. 5. Platform Admin may finalise escalation. 6. Fine is upheld, adjusted or waived; ledger/dues updated.
+Alternate / Exception Flows
+Disputed amount does not add a new borrow block until resolution. Admin adjustment creates audit before/after values.
+Postconditions
+Final fine status and due balance are consistent across wallet/order/borrow.
+
+UC-18 — Checkout multi-store / mixed cart
+Field
+Specification
+Primary Actor
+Customer
+Preconditions
+Cart contains one or more stores and may contain purchase + borrow lines.
+Main Flow
+1. System groups lines by store. 2. Creates one Checkout and one StoreOrder per store. 3. Calculates fulfilment per StoreOrder. 4. Customer reviews aggregated and per-store totals. 5. Payment allocations are recorded. 6. StoreOrders fulfil independently.
+Alternate / Exception Flows
+One StoreOrder cancelled: others continue. One unavailable line: revised total confirmation required before final capture where applicable.
+Postconditions
+Parent Checkout shows consolidated status; each StoreOrder is independently traceable.
+
+UC-19 — Resolve concurrent checkout conflict
+Field
+Specification
+Primary Actor
+Customer / System
+Preconditions
+Two customers attempt to obtain same last eligible Copy.
+Main Flow
+1. Both requests reach checkout. 2. First transaction acquires allocation lock and confirms Copy after verified payment. 3. Second transaction observes no eligible Copy. 4. Second transaction receives deterministic conflict result and refund for affected amount.
+Alternate / Exception Flows
+Payment succeeds but stock conflict occurs: refund automatically; no duplicate allocation. Duplicate callback: idempotent response; no second allocation.
+Postconditions
+Exactly one active allocation exists for Copy; financial records balanced.
+
+UC-20 — Handle delivery failure and retry/return
+Field
+Specification
+Primary Actor
+Customer / Store Manager / Delivery Partner
+Preconditions
+StoreOrder is Dispatched; delivery job active.
+Main Flow
+1. Delivery partner reports failure. 2. System records reason and increments attempt count. 3. If eligible, create next attempt. 4. After two retries/72 hours, return item to owning store. 5. Settle cancellation/refund using actual incurred charges. 6. Notify customer and store.
+Alternate / Exception Flows
+Provider API unavailable: retry API call without duplicate job creation. Customer refuses item: mark reason and follow same settlement policy.
+Postconditions
+DeliveryJob closed, Copy returned/released, StoreOrder settled and notifications sent.
+
+10. Acceptance Criteria
+The following acceptance tests provide executable checkpoints for the highest-risk financial, inventory, workflow and integration requirements. “Pass” means the stated observable outcome is achieved without violating the referenced business rule or integrity constraint.
+Test ID
+Req.
+Test Action
+Expected Result
+AT-AUTH-01
+AUTH-01/04
+Use an authorised and an unauthorised institutional identity.
+Only authorised identity registers; Store Manager cannot access another store.
+AT-CAT-01
+CAT-06/INV-04
+Create 3 eligible Copies and 1 unavailable Copy for an Item.
+Catalogue availability equals eligible Copy count.
+AT-CART-01
+CART-06/07
+Place purchase + borrow lines from two stores in one cart.
+One Checkout, two StoreOrders; each StoreOrder has one fulfilment method and independent status.
+AT-CART-02
+CART-09/INV-06
+Run concurrent checkout requests for the last Copy.
+Exactly one transaction allocates the Copy; conflict transaction is refunded/settled correctly.
+AT-CART-03
+CART-10/CAN-03
+Pay one StoreOrder partly by wallet and partly by gateway, then cancel before handover.
+Wallet portion returns to wallet; gateway portion returns to gateway; no duplicate refund.
+AT-BOR-01
+BOR-04/05
+Complete borrow payment and handover.
+Specific Copy allocated; borrow starts at handover; due date matches configured duration.
+AT-BOR-02
+BOR-06
+Attempt second renewal and renewal while waitlist exists.
+Second renewal rejected; waitlisted renewal rejected; audit/notification present.
+AT-FUL-01
+FUL-01/02
+Do not collect Self Pickup order for 7 days.
+Order cancels, stock releases, deposit refund is reduced by no-show deduction, borrow fee is kept.
+AT-FUL-02
+FUL-07
+Force two delivery failures due to customer unavailability.
+Retry policy is followed; after limit item returns to store and settlement is created.
+AT-SELL-01
+SELL-01 to SELL-08
+Complete an in-store sell submission including acceptance/approval and a rejection case.
+Accepted item credits the wallet exactly once, creates a Copy and Listing, and records seller/quote/approver; rejected item creates no payout or listing.
+AT-WAL-01
+WAL-10/11
+Replay same wallet payout request twice.
+One financial effect; second request returns idempotent result.
+AT-WAL-02
+WAL-10
+Force bank payout failure after reservation.
+Reserved amount is released; settled wallet balance is unchanged; Failed state recorded.
+AT-WAL-03
+WAL-12
+Inject mismatch between successful provider payout and internal ledger.
+Reconciliation identifies mismatch and raises operational alert.
+AT-PEN-01
+PEN-04/08
+Create fine greater than deposit and dispute it.
+Due reflects undisputed amount; dispute status tracked; new borrowing block follows dispute outcome.
+AT-CAN-01
+CAN-01/05
+Cancel one StoreOrder from multi-store Checkout.
+Only selected StoreOrder cancels; other StoreOrders continue.
+AT-INT-01
+Payment API contract
+Send duplicate payment webhook with same eventId.
+Second callback has no additional charge/allocation.
+AT-INT-02
+Delivery API contract
+Retry delivery job creation using same idempotency key.
+Provider receives/represents one logical job.
+AT-NFR-01
+NFR-01
+Execute load test under normal load.
+>=95% search/item-page requests <=2 s; checkout <=5 s excluding provider.
+AT-REC-01
+NFR-11
+Restore latest backup/archive set in test environment.
+RPO/RTO targets met; committed transactions preserved.
+AT-OBS-01
+NFR-12
+Trigger payment/delivery/wallet failure.
+Correlated logs, metrics and alert generated; critical alert within 5 minutes.
+AT-CONF-01
+ADM-08/NFR-16
+Change late-fine rate with a new effective date while an old borrow exists.
+Old borrow uses saved prior rate; new borrow uses new version; audit shows both versions.
+AT-DATA-01
+C-06/C-15
+Attempt duplicate wallet or provider event IDs.
+Uniqueness constraint/idempotency prevents duplicate financial state.
+AT-SEC-01
+NFR-04/05/07
+Attempt repeated failed login and cross-store access.
+Authentication throttled; cross-store operation denied and logged.
+
+11. Requirements Traceability Matrix
+The matrix maps every functional requirement to a representative use case, data entities and an acceptance test. The referenced test is the minimum acceptance checkpoint; additional unit/integration/system tests may be derived during implementation.
+Requirement
+Use Case(s)
+Data Entities
+Acceptance Test
+Priority
+AUTH-01
+UC-01
+User, Institution, AuthorisedUserEntry
+AT-AUTH-01
+M
+AUTH-02
+UC-01
+User
+AT-AUTH-01
+M
+AUTH-03
+UC-01
+User
+AT-SEC-01
+M
+AUTH-04
+UC-01, UC-13, UC-14
+User, Store
+AT-AUTH-01
+M
+AUTH-05
+UC-01
+User, Notification
+AT-AUTH-01
+M
+AUTH-06
+UC-14
+User, BorrowRecord, Fine/Due
+AT-AUTH-01
+M
+AUTH-07
+UC-01
+User
+AT-SEC-01
+S
+AUTH-08
+UC-01
+User, AuditLog
+AT-SEC-01
+M
+CAT-01
+UC-02
+Item, Listing
+AT-CAT-01
+M
+CAT-02
+UC-02
+Item, Listing, Copy, Store, Institution
+AT-CAT-01
+M
+CAT-03
+UC-02, UC-03
+Item, Listing
+AT-CAT-01
+M
+CAT-04
+UC-13, UC-14
+Listing, User
+AT-AUTH-01
+M
+CAT-05
+UC-17
+WaitlistEntry, Notification, Item
+AT-CAT-01
+S
+CAT-06
+UC-02
+Listing, Copy
+AT-CAT-01
+M
+CART-01
+UC-18
+Cart, CartLine
+AT-CART-01
+M
+CART-02
+UC-19
+CartLine, Copy
+AT-CART-02
+M
+CART-03
+UC-18
+StoreOrder, Store, User
+AT-CART-01
+M
+CART-04
+UC-18
+Checkout, StoreOrder, Payment
+AT-CART-01
+M
+CART-05
+UC-18
+Payment, WalletTransaction
+AT-CART-03
+M
+CART-06
+UC-18
+Checkout, StoreOrder, OrderLine
+AT-CART-01
+M
+CART-07
+UC-18
+StoreOrder, OrderLine, BorrowRecord
+AT-CART-01
+M
+CART-08
+UC-19
+OrderLine, Payment, Refund
+AT-CART-02
+M
+CART-09
+UC-19
+Copy, Payment, StoreOrder
+AT-CART-02
+M
+CART-10
+UC-18, UC-09
+Payment, PaymentAllocation, StoreOrder
+AT-CART-03
+M
+CART-11
+UC-09, UC-18
+Checkout, StoreOrder
+AT-CAN-01
+M
+BOR-01
+UC-03
+Listing, Copy
+AT-BOR-01
+M
+BOR-02
+UC-03
+BorrowRecord, ConfigParameter
+AT-BOR-01
+M
+BOR-03
+UC-03, UC-08
+Listing, BorrowRecord, ConfigParameter
+AT-FUL-01
+M
+BOR-04
+UC-03
+OrderLine, Copy, BorrowRecord, Payment
+AT-BOR-01
+M
+BOR-05
+UC-03, UC-06
+BorrowRecord, DeliveryJob
+AT-BOR-01
+M
+BOR-06
+UC-07
+BorrowRecord, Renewal, WaitlistEntry
+AT-BOR-02
+M
+BOR-07
+UC-03, UC-07
+BorrowRecord, Notification
+AT-BOR-01
+M
+BOR-08
+UC-08
+BorrowRecord, DeliveryJob, Copy
+AT-BOR-01
+M
+BOR-09
+UC-08
+BorrowRecord, Copy, Fine/Due
+AT-PEN-01
+M
+BOR-10
+UC-08
+BorrowRecord, Fine/Due
+AT-PEN-01
+M
+BOR-11
+UC-12
+Fine/Due, User, AuditLog
+AT-PEN-01
+M
+FUL-01
+UC-05
+StoreOrder, Notification
+AT-FUL-01
+M
+FUL-02
+UC-05
+StoreOrder, Copy, Refund, Payment
+AT-FUL-01
+M
+FUL-03
+UC-06
+StoreOrder, DeliveryJob, ConfigParameter
+AT-FUL-02
+M
+FUL-04
+UC-06
+Store, StoreOrder, DeliveryJob
+AT-FUL-02
+M
+FUL-05
+UC-08
+BorrowRecord, DeliveryJob
+AT-FUL-02
+M
+FUL-06
+UC-06, UC-20
+DeliveryJob, Notification
+AT-FUL-02
+M
+FUL-07
+UC-20
+DeliveryJob, StoreOrder, Refund, Copy
+AT-FUL-02
+M
+FUL-08
+UC-05, UC-06
+Item, StoreOrder, DeliveryJob
+AT-FUL-01
+M
+FUL-09
+UC-06
+StoreOrder, Notification
+AT-FUL-02
+S
+FUL-10
+UC-20
+DeliveryJob, StoreOrder
+AT-INT-02
+M
+SELL-01
+UC-10
+SellSubmission, User
+AT-SELL-01
+M
+SELL-02
+UC-10
+SellSubmission, SellLine, User
+AT-SELL-01
+M
+SELL-03
+UC-10
+SellLine, ConfigParameter
+AT-SELL-01
+M
+SELL-04
+UC-10
+SellSubmission, SellLine
+AT-SELL-01
+M
+SELL-05
+UC-10
+Wallet, WalletTransaction, SellSubmission
+AT-SELL-01
+M
+SELL-06
+UC-10
+SellLine, AuditLog
+AT-SELL-01
+M
+SELL-07
+UC-10
+Copy, Listing, Item
+AT-SELL-01
+M
+SELL-08
+UC-10
+SellSubmission, SellLine, AuditLog
+AT-SELL-01
+M
+WAL-01
+UC-11
+User, Wallet
+AT-WAL-01
+M
+WAL-02
+UC-11, UC-09
+Wallet, WalletTransaction
+AT-WAL-01
+M
+WAL-03
+UC-18
+Wallet, Payment, PaymentAllocation
+AT-CART-03
+M
+WAL-04
+UC-11
+Wallet, WalletTransaction
+AT-WAL-02
+M
+WAL-05
+UC-11, UC-10
+WalletTransaction
+AT-WAL-01
+M
+WAL-06
+UC-11
+Wallet
+AT-WAL-02
+M
+WAL-07
+UC-11
+User, Wallet
+AT-SEC-01
+M
+WAL-08
+UC-11
+Wallet, Fine/Due
+AT-WAL-01
+M
+WAL-09
+UC-09
+PaymentAllocation, Refund, WalletTransaction
+AT-CART-03
+M
+WAL-10
+UC-11
+Wallet, WalletTransaction
+AT-WAL-02
+M
+WAL-11
+UC-11, UC-19
+WalletTransaction
+AT-WAL-01
+M
+WAL-12
+UC-11
+WalletTransaction, Payment, AuditLog
+AT-WAL-03
+M
+PEN-01
+UC-08
+Fine/Due, BorrowRecord, ConfigParameter
+AT-PEN-01
+M
+PEN-02
+UC-08
+Fine/Due, Copy
+AT-PEN-01
+M
+PEN-03
+UC-08
+Fine/Due, BorrowRecord
+AT-PEN-01
+M
+PEN-04
+UC-08
+Fine/Due, User
+AT-PEN-01
+M
+PEN-05
+UC-12
+Fine/Due, Notification
+AT-PEN-01
+M
+PEN-06
+UC-12, UC-11
+Fine/Due, Wallet, Payment
+AT-WAL-01
+M
+PEN-07
+UC-12
+Fine/Due, AuditLog
+AT-PEN-01
+S
+PEN-08
+UC-12
+Fine/Due, User
+AT-PEN-01
+M
+PEN-09
+UC-12
+Fine/Due, AuditLog
+AT-PEN-01
+S
+CAN-01
+UC-09
+StoreOrder, Copy
+AT-CAN-01
+M
+CAN-02
+UC-09
+OrderLine, PaymentAllocation, Refund
+AT-CART-03
+M
+CAN-03
+UC-09
+PaymentAllocation, Refund, WalletTransaction
+AT-CART-03
+M
+CAN-04
+UC-09
+StoreOrder, Refund, AuditLog
+AT-CAN-01
+M
+CAN-05
+UC-09, UC-18
+Checkout, StoreOrder
+AT-CAN-01
+M
+CAN-06
+UC-04, UC-08
+StoreOrder, BorrowRecord
+AT-CAN-01
+M
+CAN-07
+UC-20
+DeliveryJob, StoreOrder, Refund
+AT-FUL-02
+M
+INV-01
+UC-13
+Copy, Store
+AT-CAT-01
+M
+INV-02
+UC-13
+Item, Copy, Listing, Store
+AT-AUTH-01
+M
+INV-03
+UC-13
+Listing, Item, Store
+AT-CAT-01
+M
+INV-04
+UC-02, UC-13
+Copy, Listing
+AT-CAT-01
+M
+INV-05
+UC-19, UC-09, UC-08
+Copy, StoreOrder, BorrowRecord
+AT-CART-02
+M
+INV-06
+UC-19
+Copy, StoreOrder
+AT-CART-02
+M
+INV-07
+UC-13, UC-20
+StoreOrder, BorrowRecord, SellSubmission, DeliveryJob
+AT-FUL-02
+M
+INV-08
+UC-13
+Copy, Listing, Store
+AT-CAT-01
+S
+NOT-01
+UC-03, UC-05, UC-06, UC-08, UC-09, UC-11
+Notification
+AT-OBS-01
+M
+NOT-02
+UC-01
+Notification, User
+AT-OBS-01
+M
+NOT-03
+UC-05, UC-06, UC-11
+Notification
+AT-OBS-01
+M
+ADM-01
+UC-14
+Institution, Store, User
+AT-AUTH-01
+M
+ADM-02
+UC-14
+AuthorisedUserEntry, User
+AT-AUTH-01
+M
+ADM-03
+UC-14
+Listing, User, BorrowRecord, ConfigParameter
+AT-AUTH-01
+M
+ADM-04
+UC-15
+ConfigParameter
+AT-CONF-01
+M
+ADM-05
+UC-16
+StoreOrder, WalletTransaction, Fine/Due, Copy
+AT-OBS-01
+M
+ADM-06
+UC-16
+AuditLog
+AT-SEC-01
+M
+ADM-07
+UC-15, UC-20
+ConfigParameter, DeliveryJob
+AT-FUL-02
+M
+ADM-08
+UC-15
+ConfigParameter, StoreOrder, BorrowRecord
+AT-CONF-01
+M
+ADM-09
+UC-16, UC-20
+AuditLog, Notification
+AT-OBS-01
+M
+
+12. Future Scope
+Digital versions of books and study material, with access periods replacing physical borrow dates and without physical fulfilment.
+Additional delivery integrations and improved live tracking.
+Recommendations based on course, search and past activity.
+Native mobile applications.
+Automated image-based condition assessment and catalogue enrichment, subject to a separate requirements baseline.
+Appendix A. Project Decisions and Assumptions
+All previously unresolved high-impact ambiguities have been converted into explicit v2.0 decisions below. These are part of the final requirements baseline and should not remain open during implementation unless a formal change request is approved.
+Decision ID
+Topic
+Final decision
+D-01
+Multi-store checkout
+Allowed. One Checkout parent creates one StoreOrder per store. StoreOrders have independent fulfilment, cancellation, refund and status.
+D-02
+Mixed purchase + borrow cart
+Allowed. A StoreOrder may mix purchase and borrow lines; one fulfilment method is selected per StoreOrder and all lines are handed over together.
+D-03
+Item–Copy–Listing model
+Item is the product definition; Copy is the physical unit; Listing is a store-level Item offer and is not copy-specific.
+D-04
+Availability calculation
+Derived by counting eligible Copies for the Item + Store + transaction type.
+D-05
+Concurrent checkout
+Atomic allocation/locking guarantees at most one active allocation of a Copy.
+D-06
+Refund precedence
+Gateway share returns to gateway; wallet share returns to wallet; mixed refund uses PaymentAllocation.
+D-07
+Borrow fee on no-show/cancellation
+Borrow fee is non-refundable. Deposit is refundable subject to no-show deduction or delivery/cancellation charges.
+D-08
+Delivery retries
+Two customer-unavailable/refusal retries within 72 hours, after which the item returns to store and the StoreOrder settles.
+D-09
+Wallet redemption failure
+Pending redemption reserves funds; failure releases reservation; successful payout settles debit; corrections use reversal entries.
+D-10
+Fine dispute
+Customer may dispute within 7 days; dispute states are explicit; undisputed dues remain enforceable.
+D-11
+Notification preferences
+Users may opt out of non-security SMS. Mandatory notices remain required through at least one supported channel.
+D-12
+Retention
+Profile 24 months after closure; financial/order/wallet/audit 7 years; application/security logs 90 days; backup retention 35 days unless hold applies.
+D-13
+Recovery
+RPO <=15 minutes, RTO <=2 hours, quarterly restore test.
+D-14
+Configuration
+Parameters are versioned and effective-dated; transactions snapshot the applicable values.
+D-15
+API versioning
+Public/internal integration contracts use /api/v1 baseline. Breaking changes require a new version and parallel migration period.
+
+Appendix A.1 Assumptions Carried into the Baseline
+ID
+Assumption
+A-01
+Each participating institution supplies an authorised-user list or permits Platform Admins to maintain it.
+A-02
+Each participating institution has one Unikart store with a Store Manager in the v2.0 operational model.
+A-03
+A delivery partner is available for required delivery locations and supports the API behaviours defined in Section 6.
+A-04
+The payment gateway can support payment status callbacks and refunds; the bank payout service supports asynchronous payout status.
+A-05
+Customers provide a valid delivery address for Delivery fulfilment.
+A-06
+All numeric performance targets are proposed acceptance targets for the academic project unless later approved otherwise.
+
+Appendix B. Validation Checklist
+#
+Validation item
+Status
+1
+Scope frozen; peer-to-peer and digital content remain out of scope.
+PASS
+2
+Multi-store + mixed cart model explicitly defined.
+PASS
+3
+Item–Copy–Listing relationship and availability calculation defined.
+PASS
+4
+Wallet + gateway split-refund behaviour defined.
+PASS
+5
+Atomic inventory allocation and idempotent checkout defined.
+PASS
+6
+Wallet transaction states, reconciliation and failed payout handling defined.
+PASS
+7
+Detailed high-risk use cases included.
+PASS
+8
+Acceptance criteria included.
+PASS
+9
+Traceability matrix covers every functional requirement.
+PASS
+10
+System context, use case, ER, order activity, borrow state, sell workflow, deployment and information flow diagrams included.
+PASS
+11
+API request/response, authentication, timeout/retry, callback idempotency and versioning baseline defined.
+PASS
+12
+Delivery retry/return-to-store policy defined.
+PASS
+13
+Fine dispute workflow defined.
+PASS
+14
+Notification opt-out and mandatory-message policy defined.
+PASS
+15
+Data retention/deletion/legal-hold rules defined.
+PASS
+16
+RPO/RTO and restore-test frequency defined.
+PASS
+17
+Observability and alerting requirements defined.
+PASS
+18
+Configuration versioning/effective-date rules defined.
+PASS
+19
+No unresolved Appendix B functional decisions remain.
+PASS
+
+Appendix B.1 Architecture and Information Flow
+
+Figure 7. Deployment Diagram
+
+
+Figure 8. Information Flow Diagram
+
